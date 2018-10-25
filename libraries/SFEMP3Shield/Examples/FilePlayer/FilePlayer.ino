@@ -1,10 +1,11 @@
 /**
- * \file FilePlayerStella.ino
+ * \file FilePlayer.ino
  *
- * \brief Christmas present for Stella. Plays mp3 tracks during december 2018
- * (advent calendar).
+ * \brief Example sketch of using the MP3Shield Arduino driver, with flexible list of files and formats
+ * \remarks comments are implemented with Doxygen Markdown format
  *
- * \author Nicolas Duchoud
+ * \author Bill Porter
+ * \author Michael P. Flaga
  *
  * This sketch listens for commands from a serial terminal (such as the Serial
  * Monitor in the Arduino IDE). Listening for either a single character menu
@@ -20,24 +21,13 @@
  * file index. As the Serial Monitor is typically default with no CR or LF, this
  * sketch uses intercharacter time out as to determine when a full string has
  * has been entered to be processed.
- *
- * \todo NDu 24.10.18 Use speakerts instead of headphones
- * \todo NDu 24.10.18 Implement RTC Clock
- * \todo NDu 24.10.18 Implement calendar and play only track corresponding to corresponding day
- * \todo NDU 24.10.18 Implement switch to start track
- * \todo NDu 24.10.18 Play time with 9VDC battery?
- *                    -> use steffis power bank! test it
- * \todo NDu 24.10.18 build a case for all the stuff
- *                    -> robust design!
- *                    
- *
  */
 
 #include <SPI.h>
 
 //Add the SdFat Libraries
 #include <SdFat.h>
-//#include <FreeStack.h>
+#include <FreeStack.h>
 
 //and the MP3 Shield Library
 #include <SFEMP3Shield.h>
@@ -48,9 +38,6 @@
 #elif defined(USE_MP3_REFILL_MEANS) && USE_MP3_REFILL_MEANS == USE_MP3_SimpleTimer
   #include <SimpleTimer.h>
 #endif
-
-
-const int8_t VERSION = 1;
 
 /**
  * \brief Object instancing the SdFat library.
@@ -90,22 +77,20 @@ void setup() {
 
   Serial.begin(115200);
 
-  Serial.print(F("Stellas present Version ="));
-  Serial.print(VERSION);
-  // Serial.print(F("F_CPU = "));
-  // Serial.println(F_CPU);
-  // Serial.print(F("Free RAM = ")); // available in Version 1.0 F() bases the string to into Flash, to use less SRAM.
-  // Serial.print(FreeStack(), DEC);  // FreeRam() is provided by SdFatUtil.h
-  // Serial.println(F(" Should be a base line of 1017, on ATmega328 when using INTx"));
+  Serial.print(F("F_CPU = "));
+  Serial.println(F_CPU);
+  Serial.print(F("Free RAM = ")); // available in Version 1.0 F() bases the string to into Flash, to use less SRAM.
+  Serial.print(FreeStack(), DEC);  // FreeRam() is provided by SdFatUtil.h
+  Serial.println(F(" Should be a base line of 1017, on ATmega328 when using INTx"));
+
 
   //Initialize the SdCard.
   if(!sd.begin(SD_SEL, SPI_FULL_SPEED)) sd.initErrorHalt();
   // depending upon your SdCard environment, SPI_HAVE_SPEED may work better.
-  if(!sd.chdir("/"))     sd.errorHalt("sd.chdir");
+  if(!sd.chdir("/")) sd.errorHalt("sd.chdir");
 
   //Initialize the MP3 Player Shield
   result = MP3player.begin();
-
   //check result, see readme for error codes.
   if(result != 0) {
     Serial.print(F("Error code: "));
@@ -160,7 +145,7 @@ void loop() {
   char inByte;
   if (Serial.available() > 0) {
     inByte = Serial.read();
-    if ((0x20 <= inByte)){ // && (inByte <= 0x126)) { // strip off non-ASCII, such as CR or LF
+    if ((0x20 <= inByte) && (inByte <= 0x126)) { // strip off non-ASCII, such as CR or LF
       if (isDigit(inByte)) { // macro for ((inByte >= '0') && (inByte <= '9'))
         // else if it is a number, add it to the string
         buffer[buffer_pos++] = inByte;
@@ -188,7 +173,7 @@ void loop() {
       SdFile file;
       char filename[13];
       sd.chdir("/",true);
-      int16_t count = 1;
+      uint16_t count = 1;
       while (file.openNext(sd.vwd(),O_READ))
       {
         file.getName(filename, sizeof(filename));
@@ -406,14 +391,13 @@ void parse_menu(byte key_command) {
 
   } else if(key_command == 't') {
     int8_t teststate = MP3player.enableTestSineWave(126);
-    if(teststate == 1) {
+    if(teststate == -1) {
+      Serial.println(F("Un-Available while playing music or chip in reset."));
+    } else if(teststate == 1) {
       Serial.println(F("Enabling Test Sine Wave"));
     } else if(teststate == 2) {
       MP3player.disableTestSineWave();
       Serial.println(F("Disabling Test Sine Wave"));
-    }
-    else {
-      Serial.println(F("Un-Available while playing music or chip in reset."));
     }
 
   } else if(key_command == 'S') {
@@ -422,7 +406,7 @@ void parse_menu(byte key_command) {
     Serial.println(MP3player.isPlaying());
 
     Serial.print(F("getState() = "));
-    switch ( MP3player.getState() ) {
+    switch (MP3player.getState()) {
     case uninitialized:
       Serial.print(F("uninitialized"));
       break;
@@ -450,8 +434,6 @@ void parse_menu(byte key_command) {
     case testing_sinewave:
       Serial.print(F("testing_sinewave"));
       break;
-    default:
-      break;
     }
     Serial.println();
 
@@ -463,7 +445,9 @@ void parse_menu(byte key_command) {
 #if !defined(__AVR_ATmega32U4__)
   } else if(key_command == 'm') {
       uint16_t teststate = MP3player.memoryTest();
-    if(teststate == 2) {
+    if(teststate == -1) {
+      Serial.println(F("Un-Available while playing music or chip in reset."));
+    } else if(teststate == 2) {
       teststate = MP3player.disableTestSineWave();
       Serial.println(F("Un-Available while Sine Wave Test"));
     } else {
@@ -652,8 +636,8 @@ void parse_menu(byte key_command) {
   }
 
   // print prompt after key stroke has been processed.
-  Serial.print(F("Time since last command: "));
-  Serial.println((float) (millis() -  millis_prv)/1000, 2);
+  Serial.print(F("Time since last command: "));  
+  Serial.println((float) (millis() -  millis_prv)/1000, 2);  
   millis_prv = millis();
   Serial.print(F("Enter s,1-9,+,-,>,<,f,F,d,i,p,t,S,b"));
 #if !defined(__AVR_ATmega32U4__)
