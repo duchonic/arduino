@@ -26,7 +26,10 @@
  * \todo NDu 24.10.18 Implement calendar and play only track corresponding to corresponding day
  * \todo NDU 24.10.18 Implement switch to start track
  * \todo NDu 24.10.18 Play time with 9VDC battery?
+ *                    -> use steffis power bank! test it
  * \todo NDu 24.10.18 build a case for all the stuff
+ *                    -> robust design!
+ *                    
  *
  */
 
@@ -157,7 +160,7 @@ void loop() {
   char inByte;
   if (Serial.available() > 0) {
     inByte = Serial.read();
-    if ((0x20 <= inByte) && (inByte <= 0x126)) { // strip off non-ASCII, such as CR or LF
+    if ((0x20 <= inByte)){ // && (inByte <= 0x126)) { // strip off non-ASCII, such as CR or LF
       if (isDigit(inByte)) { // macro for ((inByte >= '0') && (inByte <= '9'))
         // else if it is a number, add it to the string
         buffer[buffer_pos++] = inByte;
@@ -185,7 +188,7 @@ void loop() {
       SdFile file;
       char filename[13];
       sd.chdir("/",true);
-      uint16_t count = 1;
+      int16_t count = 1;
       while (file.openNext(sd.vwd(),O_READ))
       {
         file.getName(filename, sizeof(filename));
@@ -403,13 +406,14 @@ void parse_menu(byte key_command) {
 
   } else if(key_command == 't') {
     int8_t teststate = MP3player.enableTestSineWave(126);
-    if(teststate == -1) {
-      Serial.println(F("Un-Available while playing music or chip in reset."));
-    } else if(teststate == 1) {
+    if(teststate == 1) {
       Serial.println(F("Enabling Test Sine Wave"));
     } else if(teststate == 2) {
       MP3player.disableTestSineWave();
       Serial.println(F("Disabling Test Sine Wave"));
+    }
+    else {
+      Serial.println(F("Un-Available while playing music or chip in reset."));
     }
 
   } else if(key_command == 'S') {
@@ -418,7 +422,7 @@ void parse_menu(byte key_command) {
     Serial.println(MP3player.isPlaying());
 
     Serial.print(F("getState() = "));
-    switch (MP3player.getState()) {
+    switch ( MP3player.getState() ) {
     case uninitialized:
       Serial.print(F("uninitialized"));
       break;
@@ -446,6 +450,8 @@ void parse_menu(byte key_command) {
     case testing_sinewave:
       Serial.print(F("testing_sinewave"));
       break;
+    default:
+      break;
     }
     Serial.println();
 
@@ -457,9 +463,7 @@ void parse_menu(byte key_command) {
 #if !defined(__AVR_ATmega32U4__)
   } else if(key_command == 'm') {
       uint16_t teststate = MP3player.memoryTest();
-    if(teststate == -1) {
-      Serial.println(F("Un-Available while playing music or chip in reset."));
-    } else if(teststate == 2) {
+    if(teststate == 2) {
       teststate = MP3player.disableTestSineWave();
       Serial.println(F("Un-Available while Sine Wave Test"));
     } else {
