@@ -21,19 +21,6 @@
  * sketch uses intercharacter time out as to determine when a full string has
  * has been entered to be processed.
  *
- * \todo NDu 24.10.18 Use speakerts instead of headphones
- * \todo NDu 24.10.18 Implement RTC Clock
- * \todo NDu 24.10.18 Implement calendar and play only track corresponding to corresponding day
- * \todo NDU 24.10.18 Implement switch to start track
- *                    -> steffis heart, clap to start mp3!
- *
- * \todo NDu 24.10.18 Play time with 9VDC battery?
- *                    -> use steffis power bank! test it
- *
- * \todo NDu 24.10.18 build a case for all the stuff
- *                    -> robust design!
- *
- *
  */
 
 #include <SPI.h>
