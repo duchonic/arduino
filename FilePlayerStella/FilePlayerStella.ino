@@ -23,10 +23,13 @@
  *
  */
 
+//Add the Communication Libraries
 #include <SPI.h>
+#include <Wire.h>
 
 //Add the SdFat Libraries
 #include <SdFat.h>
+
 
 #include <Wire.h>
 #include "RTClib.h"
@@ -51,10 +54,14 @@ const int8_t VERSION = 1;
  */
 SdFat sd;
 
+/**
+ * \brief Object instancing the rtc DS1307 library.
+ * 
+ */
 RTC_DS1307 rtc;
 
-
-char daysOfTheWeek[7][12] = {"Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"};
+//not used for release
+//char daysOfTheWeek[7][12] = {"Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"};
 
 
 /**
@@ -63,6 +70,7 @@ char daysOfTheWeek[7][12] = {"Sunday", "Monday", "Tuesday", "Wednesday", "Thursd
  * principal object for handling all the attributes, members and functions for the library.
  */
 SFEMP3Shield MP3player;
+
 int16_t last_ms_char; // milliseconds of last recieved character from Serial port.
 int8_t buffer_pos; // next position to recieve character from Serial port.
 
@@ -119,18 +127,19 @@ void setup() {
   }
 #endif
 
-  help();
+  
   last_ms_char = millis(); // stroke the inter character timeout.
   buffer_pos = 0; // start the command string at zero length.
   parse_menu('l'); // display the list of files to play
 
-
+  //this should start the rtc, is neccessary
   if (! rtc.begin()) {
     Serial.println("Couldn't find RTC");
-    while (1);
+    
+    
+    //todo implement the assert
+    //assert(0);
   }
-
-
 }
 
 //------------------------------------------------------------------------------
@@ -158,77 +167,11 @@ void loop() {
 #endif
 
   char inByte;
-  static int track = 1;
-  static bool firstEntry = true;
 
-  switch (track){
-    case 1:{
-      if(firstEntry){
-
-        Serial.println("firstentry 001");
-        firstEntry = false;
-        MP3player.playTrack(track);
-      }
-      else if(!MP3player.isPlaying()){
-        Serial.println("next track 2");
-        track++;
-        firstEntry = true;
-      }
-      break;
-    }
-    case 2:{
-      if(firstEntry){
-
-
-        Serial.println("firstentry 002");
-        firstEntry = false;
-        MP3player.playTrack(track);
-      }
-      else if(!MP3player.isPlaying()){
-        Serial.println("next track 3");
-        firstEntry = true;
-        track++;
-      }
-      break;
-    }
-    case 3:{
-      if(firstEntry){
-
-
-        Serial.println("firstentry 003");
-        firstEntry = false;
-        MP3player.playTrack(track);
-      }
-      else if(!MP3player.isPlaying()){
-        Serial.println("next track 4");
-        firstEntry = true;
-        track++;
-      }
-      break;
-    }
-    case 4:{
-      if(firstEntry){
-        Serial.println("firstentry 004");
-        firstEntry = false;
-        MP3player.playTrack(track);
-      }
-      else if(!MP3player.isPlaying()){
-        Serial.println("next track 1");
-        firstEntry = true;
-        track++;
-      }
-      break;
-    }
-    default:{
-      track = 1;
-      break;
-    }
-  }
-
-
-
+  
   if (Serial.available() > 0) {
     inByte = Serial.read();
+
     if ((0x20 <= inByte)){ // && (inByte <= 0x126)) { // strip off non-ASCII, such as CR or LF
       if (isDigit(inByte)) { // macro for ((inByte >= '0') && (inByte <= '9'))
         // else if it is a number, add it to the string
@@ -251,56 +194,8 @@ void loop() {
       // dump if entered command is greater then uint16_t
       Serial.println(F("Ignored, Number is Too Big!"));
 
-    } else {
-      // otherwise its a number, scan through files looking for matching index.
-      int16_t fn_index = atoi(buffer);
-      SdFile file;
-      char filename[13];
-      sd.chdir("/",true);
-      int16_t count = 1;
-      while (file.openNext(sd.vwd(),O_READ))
-      {
-        file.getName(filename, sizeof(filename));
-        if ( isFnMusic(filename) ) {
+    } 
 
-          if (count == fn_index) {
-            Serial.print(F("Index "));
-            SerialPrintPaddedNumber(count, 5 );
-            Serial.print(F(": "));
-            Serial.println(filename);
-            Serial.print(F("Playing filename: "));
-            Serial.println(filename);
-            int8_t result = MP3player.playMP3(filename);
-            //check result, see readme for error codes.
-            if(result != 0) {
-              Serial.print(F("Error code: "));
-              Serial.print(result);
-              Serial.println(F(" when trying to play track"));
-            }
-            char title[30]; // buffer to contain the extract the Title from the current filehandles
-            char artist[30]; // buffer to contain the extract the artist name from the current filehandles
-            char album[30]; // buffer to contain the extract the album name from the current filehandles
-            MP3player.trackTitle((char*)&title);
-            MP3player.trackArtist((char*)&artist);
-            MP3player.trackAlbum((char*)&album);
-
-            //print out the arrays of track information
-            Serial.write((byte*)&title, 30);
-            Serial.println();
-            Serial.print(F("by:  "));
-            Serial.write((byte*)&artist, 30);
-            Serial.println();
-            Serial.print(F("Album:  "));
-            Serial.write((byte*)&album, 30);
-            Serial.println();
-            break;
-          }
-          count++;
-        }
-        file.close();
-      }
-
-    }
 
     //reset buffer to start over
     buffer_pos = 0;
@@ -308,34 +203,109 @@ void loop() {
   }
 
   delay(1000);
-
   printDate();
+  playDayTrack();
 }
 
+
+void playDayTrack(void){
+
+ // Note these buffer may be desired to exist globably.
+  // but do take much space if only needed temporarily, hence they are here.
+  char title[30]; // buffer to contain the extract the Title from the current filehandles
+  char artist[30]; // buffer to contain the extract the artist name from the current filehandles
+  char album[30]; // buffer to contain the extract the album name from the current filehandles
+
+
+  if(!MP3player.isPlaying()){  
+    
+    DateTime now = rtc.now(); 
+    uint8_t trackNr;
+
+    if(now.hour() > 8 && now.hour() < 20){
+      if( (now.month() == 11) && (now.day() == 13) ){
+        //MP3player.playTrack(0);
+        trackNr = 0;
+        Serial.println("stellas birthday");      
+      }
+      else if( (now.month()==12) && (now.day()<=24) ){
+        //MP3player.playTrack(now.day());
+        trackNr = now.day();
+        Serial.println("christmas countown track");      
+      }
+      else {
+
+
+        int nextchristmas = now.year();
+      
+        if( now.month()==12 && now.day()>24 ){
+          nextchristmas++;
+        }
+       
+        DateTime dt (nextchristmas, 12, 24, 0, 0, 0);
+      
+        Serial.print("christmas countdown:");
+        Serial.println( (dt.unixtime()-now.unixtime()) / 86400L);
+        
+        //play a random track mp3 500-599
+        //take unixtime in seconds, module 100 gives something        
+        trackNr = 100+(now.unixtime()%20);        
+      }
+    }
+    else {
+      // good night song, silence please!
+      trackNr = 0;
+      Serial.println("silence");  
+    }
+
+    MP3player.playTrack(trackNr);
+    Serial.print("trackNr:");
+    Serial.println(trackNr);
+
+    //we can get track info by using the following functions and arguments
+      //the functions will extract the requested information, and put it in the array we pass in
+      MP3player.trackTitle((char*)&title);
+      MP3player.trackArtist((char*)&artist);
+      MP3player.trackAlbum((char*)&album);
+
+      //print out the arrays of track information
+      Serial.write((byte*)&title, 30);
+      Serial.println();
+      Serial.print(F("by:  "));
+      Serial.write((byte*)&artist, 30);
+      Serial.println();
+      Serial.print(F("Album:  "));
+      Serial.write((byte*)&album, 30);
+      Serial.println();
+  }
+}
+
+/**
+ * \brief Print the Date
+ * 
+ */
 void printDate(void){
-    DateTime now = rtc.now();
-
-    Serial.print(now.year(), DEC);
-    Serial.print('/');
-    Serial.print(now.month(), DEC);
-    Serial.print('/');
-    Serial.print(now.day(), DEC);
-    Serial.print(" (");
-    Serial.print(daysOfTheWeek[now.dayOfTheWeek()]);
-    Serial.print(") ");
-    Serial.print(now.hour(), DEC);
-    Serial.print(':');
-    Serial.print(now.minute(), DEC);
-    Serial.print(':');
-    Serial.print(now.second(), DEC);
-    Serial.println();
+  DateTime now = rtc.now();
+  
+  Serial.print(now.year(), DEC);
+  Serial.print('/');
+  Serial.print(now.month(), DEC);
+  Serial.print('/');
+  Serial.print(now.day(), DEC);
+  Serial.print(" ");
+  Serial.print(now.hour(), DEC);
+  Serial.print(':');
+  Serial.print(now.minute(), DEC);
+  Serial.print(':');
+  if(now.second()<10){
+    Serial.print(0);
+  }
+  Serial.print(now.second(), DEC);
+  Serial.println();
+  
 }
-
 
 uint32_t  millis_prv;
-
-
-
 
 //------------------------------------------------------------------------------
 /**
@@ -365,7 +335,7 @@ void parse_menu(byte key_command) {
     MP3player.stopTrack();
 
   //if 1-9, play corresponding track
-  } else if(key_command >= '1' && key_command <= '9') {
+  } else if(key_command >= '0' && key_command <= '9') {
     //convert ascii numbers to real numbers
     key_command = key_command - 48;
 
