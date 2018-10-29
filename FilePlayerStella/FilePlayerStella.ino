@@ -25,8 +25,13 @@
  * \todo NDu 24.10.18 Implement RTC Clock
  * \todo NDu 24.10.18 Implement calendar and play only track corresponding to corresponding day
  * \todo NDU 24.10.18 Implement switch to start track
+ *                    -> steffis heart, clap to start mp3!
+ *                    
  * \todo NDu 24.10.18 Play time with 9VDC battery?
  *                    -> use steffis power bank! test it
+ *                    -> endurance test Thursday midnight to Sunday midnight 
+ *                       (3x24hrs = 48hrs)
+ *                       
  * \todo NDu 24.10.18 build a case for all the stuff
  *                    -> robust design!
  *                    
@@ -37,7 +42,9 @@
 
 //Add the SdFat Libraries
 #include <SdFat.h>
-//#include <FreeStack.h>
+
+#include <Wire.h>
+#include "RTClib.h"
 
 //and the MP3 Shield Library
 #include <SFEMP3Shield.h>
@@ -58,6 +65,12 @@ const int8_t VERSION = 1;
  * principal object for handling all SdCard functions.
  */
 SdFat sd;
+
+RTC_DS1307 rtc;
+
+
+char daysOfTheWeek[7][12] = {"Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"};
+
 
 /**
  * \brief Object instancing the SFEMP3Shield library.
@@ -131,6 +144,13 @@ void setup() {
   buffer_pos = 0; // start the command string at zero length.
   parse_menu('l'); // display the list of files to play
 
+
+  if (! rtc.begin()) {
+    Serial.println("Couldn't find RTC");
+    while (1);
+  }
+  
+
 }
 
 //------------------------------------------------------------------------------
@@ -158,6 +178,75 @@ void loop() {
 #endif
 
   char inByte;
+  static int track = 1;
+  static bool firstEntry = true;
+
+  switch (track){
+    case 1:{
+      if(firstEntry){
+        
+        Serial.println("firstentry 001");
+        firstEntry = false;
+        MP3player.playTrack(track);
+      }
+      else if(!MP3player.isPlaying()){
+        Serial.println("next track 2");
+        track++;
+        firstEntry = true;
+      }
+      break;  
+    }
+    case 2:{
+      if(firstEntry){
+
+        
+        Serial.println("firstentry 002");
+        firstEntry = false;
+        MP3player.playTrack(track);
+      }
+      else if(!MP3player.isPlaying()){
+        Serial.println("next track 3");
+        firstEntry = true;
+        track++;
+      }
+      break;  
+    }
+    case 3:{
+      if(firstEntry){
+
+        
+        Serial.println("firstentry 003");
+        firstEntry = false;
+        MP3player.playTrack(track);
+      }
+      else if(!MP3player.isPlaying()){
+        Serial.println("next track 4");
+        firstEntry = true;
+        track++;
+      }
+      break;        
+    }
+    case 4:{
+      if(firstEntry){
+        Serial.println("firstentry 004");
+        firstEntry = false;
+        MP3player.playTrack(track);
+      }
+      else if(!MP3player.isPlaying()){
+        Serial.println("next track 1");
+        firstEntry = true;
+        track++;
+      }
+      break;  
+    }
+    default:{
+      track = 1;
+      break;
+    }
+  }
+
+  
+  
   if (Serial.available() > 0) {
     inByte = Serial.read();
     if ((0x20 <= inByte)){ // && (inByte <= 0x126)) { // strip off non-ASCII, such as CR or LF
@@ -238,10 +327,35 @@ void loop() {
     buffer[buffer_pos] = 0; // delimit
   }
 
-  delay(100);
+  delay(1000);
+
+  printDate();
 }
 
+void printDate(void){
+    DateTime now = rtc.now();
+    
+    Serial.print(now.year(), DEC);
+    Serial.print('/');
+    Serial.print(now.month(), DEC);
+    Serial.print('/');
+    Serial.print(now.day(), DEC);
+    Serial.print(" (");
+    Serial.print(daysOfTheWeek[now.dayOfTheWeek()]);
+    Serial.print(") ");
+    Serial.print(now.hour(), DEC);
+    Serial.print(':');
+    Serial.print(now.minute(), DEC);
+    Serial.print(':');
+    Serial.print(now.second(), DEC);
+    Serial.println();
+}
+
+
 uint32_t  millis_prv;
+
+
+
 
 //------------------------------------------------------------------------------
 /**
