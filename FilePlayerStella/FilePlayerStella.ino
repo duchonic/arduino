@@ -45,7 +45,9 @@
 #endif
 
 
-const int8_t VERSION = 1;
+const uint8_t VERSION = 1;
+const uint8_t NR_OF_CHRISTMAS_SONGS = 12;
+const uint8_t DEFAULT_VOL_MAX = 3;
 
 /**
  * \brief Object instancing the SdFat library.
@@ -60,10 +62,6 @@ SdFat sd;
  */
 RTC_DS1307 rtc;
 
-//not used for release
-//char daysOfTheWeek[7][12] = {"Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"};
-
-
 /**
  * \brief Object instancing the SFEMP3Shield library.
  *
@@ -73,6 +71,8 @@ SFEMP3Shield MP3player;
 
 int16_t last_ms_char; // milliseconds of last recieved character from Serial port.
 int8_t buffer_pos; // next position to recieve character from Serial port.
+
+static uint8_t FilePlayerStella_dayCounterFuture = 0;
 
 //------------------------------------------------------------------------------
 /**
@@ -117,20 +117,10 @@ void setup() {
       Serial.println(F("Use the \"d\" command to verify SdCard can be read")); // can be removed for space, if needed.
     }
   }
-
-#if (0)
-  // Typically not used by most shields, hence commented out.
-  Serial.println(F("Applying ADMixer patch."));
-  if(MP3player.ADMixerLoad("admxster.053") == 0) {
-    Serial.println(F("Setting ADMixer Volume."));
-    MP3player.ADMixerVol(-3);
-  }
-#endif
-
   
-  last_ms_char = millis(); // stroke the inter character timeout.
-  buffer_pos = 0; // start the command string at zero length.
-  parse_menu('l'); // display the list of files to play
+  last_ms_char = millis();  // stroke the inter character timeout.
+  buffer_pos = 0;           // start the command string at zero length.
+  parse_menu('l');          // display the list of files to play
 
   //this should start the rtc, is neccessary
   if (! rtc.begin()) {
@@ -140,6 +130,8 @@ void setup() {
     //todo implement the assert
     //assert(0);
   }
+
+  MP3player.setVolume(DEFAULT_VOL_MAX, DEFAULT_VOL_MAX); // commit new volume
 }
 
 //------------------------------------------------------------------------------
@@ -203,27 +195,44 @@ void loop() {
   }
 
   delay(1000);
-  printDate();
+  //printDate();
   playDayTrack();
 }
 
 
 void playDayTrack(void){
 
- // Note these buffer may be desired to exist globably.
-  // but do take much space if only needed temporarily, hence they are here.
-  char title[30]; // buffer to contain the extract the Title from the current filehandles
-  char artist[30]; // buffer to contain the extract the artist name from the current filehandles
-  char album[30]; // buffer to contain the extract the album name from the current filehandles
-
-
+  static uint8_t tackNr_static = 0;
+ 
   if(!MP3player.isPlaying()){  
-    
-    DateTime now = rtc.now(); 
+
+
+    Serial.print("dayCounterFuture:");
+    Serial.println(FilePlayerStella_dayCounterFuture);
+
+    //DateTime now = rtc.now(); 
+    DateTime now (rtc.now().unixtime() + (FilePlayerStella_dayCounterFuture * 86400L) );
+
+    Serial.print(now.year(), DEC);
+    Serial.print('/');
+    Serial.print(now.month(), DEC);
+    Serial.print('/');
+    Serial.print(now.day(), DEC);
+    Serial.print(" ");
+    Serial.print(now.hour(), DEC);
+    Serial.print(':');
+    Serial.print(now.minute(), DEC);
+    Serial.print(':');
+    if(now.second()<10){
+      Serial.print(0);
+    }
+    Serial.print(now.second(), DEC);
+    Serial.println();
+  
     uint8_t trackNr;
 
     if(now.hour() > 8 && now.hour() < 20){
-      if( (now.month() == 11) && (now.day() == 13) ){
+      if( (now.month() == 11) && (now.day() == 15) ){
         //MP3player.playTrack(0);
         trackNr = 0;
         Serial.println("stellas birthday");      
@@ -235,9 +244,8 @@ void playDayTrack(void){
       }
       else {
 
-
         int nextchristmas = now.year();
-      
+        
         if( now.month()==12 && now.day()>24 ){
           nextchristmas++;
         }
@@ -246,37 +254,22 @@ void playDayTrack(void){
       
         Serial.print("christmas countdown:");
         Serial.println( (dt.unixtime()-now.unixtime()) / 86400L);
+
         
-        //play a random track mp3 500-599
-        //take unixtime in seconds, module 100 gives something        
-        trackNr = 100+(now.unixtime()%20);        
+        
+        trackNr = 100+(now.unixtime()%NR_OF_CHRISTMAS_SONGS);        
+          
       }
+      
+      MP3player.playTrack(trackNr);
+      Serial.print("trackNr:");
+      Serial.println(trackNr);      
     }
     else {
       // good night song, silence please!
       trackNr = 0;
       Serial.println("silence");  
     }
-
-    MP3player.playTrack(trackNr);
-    Serial.print("trackNr:");
-    Serial.println(trackNr);
-
-    //we can get track info by using the following functions and arguments
-      //the functions will extract the requested information, and put it in the array we pass in
-      MP3player.trackTitle((char*)&title);
-      MP3player.trackArtist((char*)&artist);
-      MP3player.trackAlbum((char*)&album);
-
-      //print out the arrays of track information
-      Serial.write((byte*)&title, 30);
-      Serial.println();
-      Serial.print(F("by:  "));
-      Serial.write((byte*)&artist, 30);
-      Serial.println();
-      Serial.print(F("Album:  "));
-      Serial.write((byte*)&album, 30);
-      Serial.println();
   }
 }
 
@@ -551,7 +544,11 @@ void parse_menu(byte key_command) {
   } else if(key_command == 'r') {
     MP3player.resumeMusic(2000);
 
-  } else if(key_command == 'R') {
+  } else if(key_command == 'x') {
+
+    FilePlayerStella_dayCounterFuture++;
+
+  }else if(key_command == 'R') {
     MP3player.stopTrack();
     MP3player.vs_init();
     Serial.println(F("Reseting VS10xx chip"));
