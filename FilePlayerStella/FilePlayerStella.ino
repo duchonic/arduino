@@ -1,3 +1,5 @@
+
+
 /**
  * \file FilePlayerStella.ino
  *
@@ -41,22 +43,38 @@
   #include <SimpleTimer.h>
 #endif
 
+#define PLAY_STORY_KEY A0
+#define PLAY_MUSIC_KEY A1
+#define PLAY_DISNEY_KEY A2
+#define RESERVE_01_KEY A3
+#define RESERVE_02_KEY A4
+#define RESERVE_03_KEY A5
 
-const uint8_t VERSION = 1;
+
+const uint8_t VERSION = 2;
+
+const uint8_t CHRISTMAS_SONGS_OFFSET = 100;
 const uint8_t NR_OF_CHRISTMAS_SONGS = 12;
+
+const uint8_t MUSIC_SONGS_OFFSET = 150;
+const uint8_t NR_OF_MUSIC_SONGS = 20;
+
+const uint8_t DISNEY_SONGS_OFFSET = 200;
+const uint8_t NR_OF_DISNEY_SONGS = 10;
+
 const uint8_t DEFAULT_VOL_MAX = 3;
 const uint16_t MAIN_DELAY_ms = 1000;
 const uint32_t SERIAL_BAUD = 115200;
 const uint32_t ONE_DAY_IN_SECONDS = 86400L;
 
-const uint8_t BIRTHDAY = 15;
-const uint8_t BIRTHMONTH = 11;
+const uint8_t BIRTHDAY    = 15;
+const uint8_t BIRTHMONTH  = 11;
 
 const uint8_t OPENING_HOURS_START = 8;
-const uint8_t OPENING_HOURS_STOPP = 20
+const uint8_t OPENING_HOURS_STOPP = 20;
 
-const uint8_t CHRISTMAS_MONTH 12
-const uint8_t CHRISTMAS_DAY   24
+const uint8_t CHRISTMAS_MONTH = 12;
+const uint8_t CHRISTMAS_DAY   = 24;
 
 /**
  * \brief Object instancing the SdFat library.
@@ -103,8 +121,14 @@ void setup() {
 
   uint8_t result; //result code from some function as to be tested at later time.
 
+  pinMode(PLAY_STORY_KEY, INPUT_PULLUP); 
+  pinMode(PLAY_MUSIC_KEY, INPUT_PULLUP);
+  pinMode(PLAY_DISNEY_KEY, INPUT_PULLUP);
+  pinMode(RESERVE_01_KEY, INPUT_PULLUP); 
+  pinMode(RESERVE_02_KEY, INPUT_PULLUP);
+  pinMode(RESERVE_03_KEY, INPUT_PULLUP);
+  
   Serial.begin(SERIAL_BAUD);
-
   Serial.print(F("Stellas present Version ="));
   Serial.print(VERSION);
 
@@ -170,7 +194,6 @@ void loop() {
 
   char inByte;
 
-
   if (Serial.available() > 0) {
     inByte = Serial.read();
 
@@ -195,9 +218,7 @@ void loop() {
     } else if (buffer_pos > 5) {
       // dump if entered command is greater then uint16_t
       Serial.println(F("Ignored, Number is Too Big!"));
-
     }
-
 
     //reset buffer to start over
     buffer_pos = 0;
@@ -220,50 +241,92 @@ void loop() {
  */
 void playDayTrack(DateTime now){
 
-  static uint8_t tackNr_static = 0;
-
   if(!MP3player.isPlaying()){
 
     uint8_t trackNr;
-
-    if( (now.hour() > OPENING_HOURS_START)
-       && (now.hour() < OPENING_HOURS_STOPP) ){
-
-      if( (now.month() == BIRTHMONTH)
-         && (now.day() == BIRTHDAY) ){
-        trackNr = 0;
-        Serial.println("stellas birthday");
-      }
-      else if( (now.month() == CHRISTMAS_MONTH)
-              && (now.day() <= CHRISTMAS_DAY) ){
-        trackNr = now.day();
-        Serial.println("christmas countown track");
-      }
-      else {
-
-        int nextChristmasYear = now.year();
-        /* add extra year if date is between christmas and new year */
-        if( (now.month() == CHRISTMAS_MONTH)
-           && (now.day() > CHRISTMAS_DAY) ){
-          nextChristmasYear++;
-        }
-
-        DateTime nextChristmasDate (nextChristmasYear, CHRISTMAS_MONTH, CHRISTMAS_DAY, 0, 0, 0);
-
-        Serial.print("christmas countdown:");
-        Serial.println( (nextChristmasDate.unixtime()-now.unixtime()) / ONE_DAY_IN_SECONDS);
-
-        /* calc random track */
-        trackNr = 100+(now.unixtime()%NR_OF_CHRISTMAS_SONGS);
-      }
-
-      MP3player.playTrack(trackNr);
-
-      Serial.print("Play track nr:");
-      Serial.println(trackNr);
+    int nextChristmasYear = now.year();
+    
+    if( (now.hour() < OPENING_HOURS_START)
+       && (now.hour() > OPENING_HOURS_STOPP) ){
+      Serial.println("silence during the night!");      
     }
-    else {
-      Serial.println("silence");
+    else if( digitalRead(PLAY_STORY_KEY) ){
+       Serial.println("PLAY_STORY_KEY");
+       if( (now.month() == BIRTHMONTH)
+         && (now.day() == BIRTHDAY) ){
+          trackNr = 0;
+          Serial.println("stellas birthday");
+        }
+        else if( (now.month() == CHRISTMAS_MONTH)
+                && (now.day() <= CHRISTMAS_DAY) ){
+          trackNr = now.day();
+          Serial.println("christmas countown track");
+        }     
+        MP3player.playTrack(trackNr);
+        Serial.print("Play track nr:");
+        Serial.println(trackNr);    
+    }
+    else if( digitalRead(PLAY_MUSIC_KEY) ){
+      Serial.println("PLAY_MUSIC_KEY");
+
+       /* add extra year if date is between christmas and new year */
+      if( (now.month() == CHRISTMAS_MONTH)
+         && (now.day() > CHRISTMAS_DAY) ){
+        nextChristmasYear++;
+      }
+      DateTime nextChristmasDate (nextChristmasYear, CHRISTMAS_MONTH, CHRISTMAS_DAY, 0, 0, 0);
+      Serial.print("christmas countdown:");
+      Serial.println( (nextChristmasDate.unixtime()-now.unixtime()) / ONE_DAY_IN_SECONDS);
+
+      /* calc random track */
+      if( (now.month() == CHRISTMAS_MONTH)
+              && (now.day() <= CHRISTMAS_DAY) ){
+        trackNr = CHRISTMAS_SONGS_OFFSET + (now.unixtime()%NR_OF_CHRISTMAS_SONGS);
+      }     
+      else {
+        trackNr = MUSIC_SONGS_OFFSET + (now.unixtime()%NR_OF_MUSIC_SONGS);
+      }
+      MP3player.playTrack(trackNr);
+      Serial.print("Play track nr:");
+      Serial.println(trackNr);    
+    }
+    else if( digitalRead(PLAY_DISNEY_KEY) ){
+      Serial.println("PLAY_DISNEY_KEY");    
+
+
+       /* add extra year if date is between christmas and new year */
+      if( (now.month() == CHRISTMAS_MONTH)
+         && (now.day() > CHRISTMAS_DAY) ){
+        nextChristmasYear++;
+      }
+      DateTime nextChristmasDate (nextChristmasYear, CHRISTMAS_MONTH, CHRISTMAS_DAY, 0, 0, 0);
+      Serial.print("christmas countdown:");
+      Serial.println( (nextChristmasDate.unixtime()-now.unixtime()) / ONE_DAY_IN_SECONDS);
+
+      /* calc random track */
+      if( (now.month() == CHRISTMAS_MONTH)
+              && (now.day() <= CHRISTMAS_DAY) ){
+        trackNr = CHRISTMAS_SONGS_OFFSET + (now.unixtime()%NR_OF_CHRISTMAS_SONGS);
+      }     
+      else {
+        trackNr = DISNEY_SONGS_OFFSET + (now.unixtime()%NR_OF_DISNEY_SONGS);
+      }
+      MP3player.playTrack(trackNr);
+      Serial.print("Play track nr:");
+      Serial.println(trackNr); 
+      
+    }
+    else if( digitalRead(RESERVE_01_KEY) ){
+      Serial.println("RESERVE_01_KEY");
+    }
+    else if( digitalRead(RESERVE_02_KEY) ){
+      Serial.println("RESERVE_02_KEY");
+    }
+    else if( digitalRead(RESERVE_03_KEY) ){
+      Serial.println("RESERVE_03_KEY");
+    }
+    else{
+      Serial.println("no key pressed");
     }
   }
 }
