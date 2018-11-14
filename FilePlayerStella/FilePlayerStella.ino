@@ -47,15 +47,17 @@
 #define PLAY_MUSIC_KEY  A0
 #define PLAY_DISNEY_KEY A2
 #define RESERVE_01_KEY  A3
+#define RESERVE_02_KEY  A4
+#define RESERVE_03_KEY  A5
 
 
 const uint8_t VERSION = 2;
 
 const uint8_t CHRISTMAS_SONGS_OFFSET = 100;
-const uint8_t NR_OF_CHRISTMAS_SONGS = 12;
+const uint8_t NR_OF_CHRISTMAS_SONGS = 13;
 
 const uint8_t MUSIC_SONGS_OFFSET = 150;
-const uint8_t NR_OF_MUSIC_SONGS = 20;
+const uint8_t NR_OF_MUSIC_SONGS = 23;
 
 const uint8_t DISNEY_SONGS_OFFSET = 200;
 const uint8_t NR_OF_DISNEY_SONGS = 12;
@@ -98,6 +100,7 @@ int16_t last_ms_char; // milliseconds of last recieved character from Serial por
 int8_t buffer_pos; // next position to recieve character from Serial port.
 
 static uint8_t FilePlayerStella_dayCounterFuture = 0;
+static uint8_t FilePlayerStella_hourCounterFuture = 0;
 
 //------------------------------------------------------------------------------
 /**
@@ -123,6 +126,8 @@ void setup() {
   pinMode(PLAY_MUSIC_KEY, INPUT_PULLUP);
   pinMode(PLAY_DISNEY_KEY, INPUT_PULLUP);
   pinMode(RESERVE_01_KEY, INPUT_PULLUP); 
+  pinMode(RESERVE_02_KEY, INPUT_PULLUP);
+  pinMode(RESERVE_03_KEY, INPUT_PULLUP);
   
   Serial.begin(SERIAL_BAUD);
   Serial.print(F("Stellas present Version ="));
@@ -224,7 +229,9 @@ void loop() {
   delay(MAIN_DELAY_ms);
 
   //DateTime now = rtc.now();
-  DateTime now (rtc.now().unixtime() + (FilePlayerStella_dayCounterFuture * ONE_DAY_IN_SECONDS));
+  DateTime now (rtc.now().unixtime() 
+                  + (FilePlayerStella_dayCounterFuture * ONE_DAY_IN_SECONDS)
+                    + (FilePlayerStella_hourCounterFuture * 7200) );
 
   printDate(now);
   checkKeyChange();
@@ -243,9 +250,12 @@ void playDayTrack(DateTime now){
 
     uint8_t trackNr = 0;
     int nextChristmasYear = now.year();
+
+    Serial.print("hours:");
+    Serial.println(now.hour());
     
     if( (now.hour() < OPENING_HOURS_START)
-       && (now.hour() > OPENING_HOURS_STOPP) ){
+       || (now.hour() >= OPENING_HOURS_STOPP) ){
       Serial.println("silence during the night!");      
     }
     else if( !digitalRead(PLAY_STORY_KEY) ){
@@ -347,6 +357,14 @@ void checkKeyChange(void){
   else if( !digitalRead(RESERVE_01_KEY) ){
     Serial.println("RESERVE_01_KEY");
     actual_key = 3;
+  }
+  else if( !digitalRead(RESERVE_02_KEY) ){
+    Serial.println("RESERVE_02_KEY");
+    actual_key = 4;
+  }
+  else if( !digitalRead(RESERVE_03_KEY) ){
+    Serial.println("RESERVE_03_KEY");
+    actual_key = 5;
   }
   else{
     Serial.println("no key pressed");
@@ -632,10 +650,10 @@ void parse_menu(byte key_command) {
     MP3player.resumeMusic(2000);
 
   } else if(key_command == 'x') {
-
     FilePlayerStella_dayCounterFuture++;
-
-  }else if(key_command == 'R') {
+  } else if(key_command == 'y') {
+    FilePlayerStella_hourCounterFuture++; 
+  } else if(key_command == 'R') {
     MP3player.stopTrack();
     MP3player.vs_init();
     Serial.println(F("Reseting VS10xx chip"));
