@@ -43,12 +43,10 @@
   #include <SimpleTimer.h>
 #endif
 
-#define PLAY_STORY_KEY A0
-#define PLAY_MUSIC_KEY A1
+#define PLAY_STORY_KEY  A1
+#define PLAY_MUSIC_KEY  A0
 #define PLAY_DISNEY_KEY A2
-#define RESERVE_01_KEY A3
-#define RESERVE_02_KEY A4
-#define RESERVE_03_KEY A5
+#define RESERVE_01_KEY  A3
 
 
 const uint8_t VERSION = 2;
@@ -60,7 +58,7 @@ const uint8_t MUSIC_SONGS_OFFSET = 150;
 const uint8_t NR_OF_MUSIC_SONGS = 20;
 
 const uint8_t DISNEY_SONGS_OFFSET = 200;
-const uint8_t NR_OF_DISNEY_SONGS = 10;
+const uint8_t NR_OF_DISNEY_SONGS = 12;
 
 const uint8_t DEFAULT_VOL_MAX = 3;
 const uint16_t MAIN_DELAY_ms = 1000;
@@ -125,8 +123,6 @@ void setup() {
   pinMode(PLAY_MUSIC_KEY, INPUT_PULLUP);
   pinMode(PLAY_DISNEY_KEY, INPUT_PULLUP);
   pinMode(RESERVE_01_KEY, INPUT_PULLUP); 
-  pinMode(RESERVE_02_KEY, INPUT_PULLUP);
-  pinMode(RESERVE_03_KEY, INPUT_PULLUP);
   
   Serial.begin(SERIAL_BAUD);
   Serial.print(F("Stellas present Version ="));
@@ -231,7 +227,9 @@ void loop() {
   DateTime now (rtc.now().unixtime() + (FilePlayerStella_dayCounterFuture * ONE_DAY_IN_SECONDS));
 
   printDate(now);
+  checkKeyChange();
   playDayTrack(now);
+  
 
 }
 
@@ -243,14 +241,14 @@ void playDayTrack(DateTime now){
 
   if(!MP3player.isPlaying()){
 
-    uint8_t trackNr;
+    uint8_t trackNr = 0;
     int nextChristmasYear = now.year();
     
     if( (now.hour() < OPENING_HOURS_START)
        && (now.hour() > OPENING_HOURS_STOPP) ){
       Serial.println("silence during the night!");      
     }
-    else if( digitalRead(PLAY_STORY_KEY) ){
+    else if( !digitalRead(PLAY_STORY_KEY) ){
        Serial.println("PLAY_STORY_KEY");
        if( (now.month() == BIRTHMONTH)
          && (now.day() == BIRTHDAY) ){
@@ -266,7 +264,7 @@ void playDayTrack(DateTime now){
         Serial.print("Play track nr:");
         Serial.println(trackNr);    
     }
-    else if( digitalRead(PLAY_MUSIC_KEY) ){
+    else if( !digitalRead(PLAY_MUSIC_KEY) ){
       Serial.println("PLAY_MUSIC_KEY");
 
        /* add extra year if date is between christmas and new year */
@@ -274,10 +272,12 @@ void playDayTrack(DateTime now){
          && (now.day() > CHRISTMAS_DAY) ){
         nextChristmasYear++;
       }
+      /*
       DateTime nextChristmasDate (nextChristmasYear, CHRISTMAS_MONTH, CHRISTMAS_DAY, 0, 0, 0);
       Serial.print("christmas countdown:");
       Serial.println( (nextChristmasDate.unixtime()-now.unixtime()) / ONE_DAY_IN_SECONDS);
-
+      */
+      
       /* calc random track */
       if( (now.month() == CHRISTMAS_MONTH)
               && (now.day() <= CHRISTMAS_DAY) ){
@@ -290,7 +290,7 @@ void playDayTrack(DateTime now){
       Serial.print("Play track nr:");
       Serial.println(trackNr);    
     }
-    else if( digitalRead(PLAY_DISNEY_KEY) ){
+    else if( !digitalRead(PLAY_DISNEY_KEY) ){
       Serial.println("PLAY_DISNEY_KEY");    
 
 
@@ -299,10 +299,12 @@ void playDayTrack(DateTime now){
          && (now.day() > CHRISTMAS_DAY) ){
         nextChristmasYear++;
       }
+      /*
       DateTime nextChristmasDate (nextChristmasYear, CHRISTMAS_MONTH, CHRISTMAS_DAY, 0, 0, 0);
       Serial.print("christmas countdown:");
       Serial.println( (nextChristmasDate.unixtime()-now.unixtime()) / ONE_DAY_IN_SECONDS);
-
+      */
+      
       /* calc random track */
       if( (now.month() == CHRISTMAS_MONTH)
               && (now.day() <= CHRISTMAS_DAY) ){
@@ -316,20 +318,48 @@ void playDayTrack(DateTime now){
       Serial.println(trackNr); 
       
     }
-    else if( digitalRead(RESERVE_01_KEY) ){
+    else if( !digitalRead(RESERVE_01_KEY) ){
       Serial.println("RESERVE_01_KEY");
-    }
-    else if( digitalRead(RESERVE_02_KEY) ){
-      Serial.println("RESERVE_02_KEY");
-    }
-    else if( digitalRead(RESERVE_03_KEY) ){
-      Serial.println("RESERVE_03_KEY");
     }
     else{
       Serial.println("no key pressed");
     }
   }
 }
+
+void checkKeyChange(void){
+  
+  static uint8_t key_old = 0;
+  uint8_t actual_key;
+
+  if( !digitalRead(PLAY_STORY_KEY) ){
+    Serial.println("PLAY_STORY_KEY");
+    actual_key = 0;
+  }
+  else if( !digitalRead(PLAY_MUSIC_KEY) ){
+    Serial.println("PLAY_MUSIC_KEY");
+    actual_key = 1;
+  }
+  else if( !digitalRead(PLAY_DISNEY_KEY) ){
+    Serial.println("PLAY_DISNEY_KEY");
+    actual_key = 2;
+  }
+  else if( !digitalRead(RESERVE_01_KEY) ){
+    Serial.println("RESERVE_01_KEY");
+    actual_key = 3;
+  }
+  else{
+    Serial.println("no key pressed");
+  }
+
+  if(actual_key != key_old){
+    key_old = actual_key;
+
+    Serial.println(F("New Key Pressed"));
+    MP3player.stopTrack();
+  }
+}
+
 
 /**
  * \brief Print the Date
