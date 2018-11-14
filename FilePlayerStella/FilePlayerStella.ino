@@ -29,9 +29,6 @@
 
 //Add the SdFat Libraries
 #include <SdFat.h>
-
-
-#include <Wire.h>
 #include "RTClib.h"
 
 //and the MP3 Shield Library
@@ -48,6 +45,18 @@
 const uint8_t VERSION = 1;
 const uint8_t NR_OF_CHRISTMAS_SONGS = 12;
 const uint8_t DEFAULT_VOL_MAX = 3;
+const uint16_t MAIN_DELAY_ms = 1000;
+const uint32_t SERIAL_BAUD = 115200;
+const uint32_t ONE_DAY_IN_SECONDS = 86400L;
+
+const uint8_t BIRTHDAY = 15;
+const uint8_t BIRTHMONTH = 11;
+
+const uint8_t OPENING_HOURS_START = 8;
+const uint8_t OPENING_HOURS_STOPP = 20
+
+const uint8_t CHRISTMAS_MONTH 12
+const uint8_t CHRISTMAS_DAY   24
 
 /**
  * \brief Object instancing the SdFat library.
@@ -58,7 +67,7 @@ SdFat sd;
 
 /**
  * \brief Object instancing the rtc DS1307 library.
- * 
+ *
  */
 RTC_DS1307 rtc;
 
@@ -94,7 +103,7 @@ void setup() {
 
   uint8_t result; //result code from some function as to be tested at later time.
 
-  Serial.begin(115200);
+  Serial.begin(SERIAL_BAUD);
 
   Serial.print(F("Stellas present Version ="));
   Serial.print(VERSION);
@@ -117,7 +126,7 @@ void setup() {
       Serial.println(F("Use the \"d\" command to verify SdCard can be read")); // can be removed for space, if needed.
     }
   }
-  
+
   last_ms_char = millis();  // stroke the inter character timeout.
   buffer_pos = 0;           // start the command string at zero length.
   parse_menu('l');          // display the list of files to play
@@ -125,13 +134,14 @@ void setup() {
   //this should start the rtc, is neccessary
   if (! rtc.begin()) {
     Serial.println("Couldn't find RTC");
-    
-    
+
+
     //todo implement the assert
     //assert(0);
   }
 
-  MP3player.setVolume(DEFAULT_VOL_MAX, DEFAULT_VOL_MAX); // commit new volume
+  // commit new volume
+  MP3player.setVolume(DEFAULT_VOL_MAX, DEFAULT_VOL_MAX);
 }
 
 //------------------------------------------------------------------------------
@@ -160,7 +170,7 @@ void loop() {
 
   char inByte;
 
-  
+
   if (Serial.available() > 0) {
     inByte = Serial.read();
 
@@ -186,7 +196,7 @@ void loop() {
       // dump if entered command is greater then uint16_t
       Serial.println(F("Ignored, Number is Too Big!"));
 
-    } 
+    }
 
 
     //reset buffer to start over
@@ -194,92 +204,76 @@ void loop() {
     buffer[buffer_pos] = 0; // delimit
   }
 
-  delay(1000);
-  //printDate();
-  playDayTrack();
+  delay(MAIN_DELAY_ms);
+
+  //DateTime now = rtc.now();
+  DateTime now (rtc.now().unixtime() + (FilePlayerStella_dayCounterFuture * ONE_DAY_IN_SECONDS));
+
+  printDate(now);
+  playDayTrack(now);
+
 }
 
-
-void playDayTrack(void){
+/**
+ * \brief play a track corresponding to the date
+ * \param now the date and time
+ */
+void playDayTrack(DateTime now){
 
   static uint8_t tackNr_static = 0;
- 
-  if(!MP3player.isPlaying()){  
 
+  if(!MP3player.isPlaying()){
 
-    Serial.print("dayCounterFuture:");
-    Serial.println(FilePlayerStella_dayCounterFuture);
-
-    //DateTime now = rtc.now(); 
-    DateTime now (rtc.now().unixtime() + (FilePlayerStella_dayCounterFuture * 86400L) );
-
-    Serial.print(now.year(), DEC);
-    Serial.print('/');
-    Serial.print(now.month(), DEC);
-    Serial.print('/');
-    Serial.print(now.day(), DEC);
-    Serial.print(" ");
-    Serial.print(now.hour(), DEC);
-    Serial.print(':');
-    Serial.print(now.minute(), DEC);
-    Serial.print(':');
-    if(now.second()<10){
-      Serial.print(0);
-    }
-    Serial.print(now.second(), DEC);
-    Serial.println();
-  
     uint8_t trackNr;
 
-    if(now.hour() > 8 && now.hour() < 20){
-      if( (now.month() == 11) && (now.day() == 15) ){
-        //MP3player.playTrack(0);
+    if( (now.hour() > OPENING_HOURS_START)
+       && (now.hour() < OPENING_HOURS_STOPP) ){
+
+      if( (now.month() == BIRTHMONTH)
+         && (now.day() == BIRTHDAY) ){
         trackNr = 0;
-        Serial.println("stellas birthday");      
+        Serial.println("stellas birthday");
       }
-      else if( (now.month()==12) && (now.day()<=24) ){
-        //MP3player.playTrack(now.day());
+      else if( (now.month() == CHRISTMAS_MONTH)
+              && (now.day() <= CHRISTMAS_DAY) ){
         trackNr = now.day();
-        Serial.println("christmas countown track");      
+        Serial.println("christmas countown track");
       }
       else {
 
-        int nextchristmas = now.year();
-        
-        if( now.month()==12 && now.day()>24 ){
-          nextchristmas++;
+        int nextChristmasYear = now.year();
+        /* add extra year if date is between christmas and new year */
+        if( (now.month() == CHRISTMAS_MONTH)
+           && (now.day() > CHRISTMAS_DAY) ){
+          nextChristmasYear++;
         }
-       
-        DateTime dt (nextchristmas, 12, 24, 0, 0, 0);
-      
-        Serial.print("christmas countdown:");
-        Serial.println( (dt.unixtime()-now.unixtime()) / 86400L);
 
-        
-        
-        trackNr = 100+(now.unixtime()%NR_OF_CHRISTMAS_SONGS);        
-          
+        DateTime nextChristmasDate (nextChristmasYear, CHRISTMAS_MONTH, CHRISTMAS_DAY, 0, 0, 0);
+
+        Serial.print("christmas countdown:");
+        Serial.println( (nextChristmasDate.unixtime()-now.unixtime()) / ONE_DAY_IN_SECONDS);
+
+        /* calc random track */
+        trackNr = 100+(now.unixtime()%NR_OF_CHRISTMAS_SONGS);
       }
-      
+
       MP3player.playTrack(trackNr);
-      Serial.print("trackNr:");
-      Serial.println(trackNr);      
+
+      Serial.print("Play track nr:");
+      Serial.println(trackNr);
     }
     else {
-      // good night song, silence please!
-      trackNr = 0;
-      Serial.println("silence");  
+      Serial.println("silence");
     }
   }
 }
 
 /**
  * \brief Print the Date
- * 
+ * \param now the date and time
  */
-void printDate(void){
-  DateTime now = rtc.now();
-  
+void printDate(DateTime now){
+
   Serial.print(now.year(), DEC);
   Serial.print('/');
   Serial.print(now.month(), DEC);
@@ -295,7 +289,7 @@ void printDate(void){
   }
   Serial.print(now.second(), DEC);
   Serial.println();
-  
+
 }
 
 uint32_t  millis_prv;
